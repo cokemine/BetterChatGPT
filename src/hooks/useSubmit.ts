@@ -1,7 +1,7 @@
 import React from 'react';
 import useStore from '@store/store';
 import { useTranslation } from 'react-i18next';
-import { ChatInterface, MessageInterface } from '@type/chat';
+import { ChatInterface, MessageInterface, ModelOptions } from '@type/chat';
 import { getChatCompletion, getChatCompletionStream } from '@api/api';
 import { parseEventSource } from '@api/helper';
 import { limitMessageTokens, updateTotalTokenUsed } from '@utils/messageUtils';
@@ -13,6 +13,7 @@ const useSubmit = () => {
   const error = useStore((state) => state.error);
   const setError = useStore((state) => state.setError);
   const apiEndpoint = useStore((state) => state.apiEndpoint);
+  const customModel = useStore((state) => state.customModel);
   const apiKey = useStore((state) => state.apiKey);
   const setGenerating = useStore((state) => state.setGenerating);
   const generating = useStore((state) => state.generating);
@@ -22,6 +23,11 @@ const useSubmit = () => {
   const generateTitle = async (
     message: MessageInterface[]
   ): Promise<string> => {
+    const config = { ..._defaultChatConfig };
+    if (customModel) {
+      config.model = customModel as ModelOptions;
+    }
+
     let data;
     try {
       if (!apiKey || apiKey.length === 0) {
@@ -41,7 +47,7 @@ const useSubmit = () => {
         data = await getChatCompletion(
           useStore.getState().apiEndpoint,
           message,
-          _defaultChatConfig,
+          config,
           apiKey
         );
       }
@@ -70,10 +76,15 @@ const useSubmit = () => {
       if (chats[currentChatIndex].messages.length === 0)
         throw new Error('No messages submitted!');
 
+      const config = { ...chats[currentChatIndex].config };
+      if (customModel) {
+        config.model = customModel as ModelOptions;
+      }
+
       const messages = limitMessageTokens(
         chats[currentChatIndex].messages,
-        chats[currentChatIndex].config.max_tokens,
-        chats[currentChatIndex].config.model
+        config.max_tokens,
+        config.model
       );
       if (messages.length === 0) throw new Error('Message exceed max token!');
 
@@ -88,14 +99,14 @@ const useSubmit = () => {
         stream = await getChatCompletionStream(
           useStore.getState().apiEndpoint,
           messages,
-          chats[currentChatIndex].config
+          config
         );
       } else if (apiKey) {
         // own apikey
         stream = await getChatCompletionStream(
           useStore.getState().apiEndpoint,
           messages,
-          chats[currentChatIndex].config,
+          config,
           apiKey
         );
       }
